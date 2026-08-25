@@ -1,0 +1,91 @@
+// Prisma schema for the Squad Voyager QR generation module.
+//
+// This lives in the SAME Supabase Postgres database as Backend Squad A, but in
+// its own Postgres schema (set via `?schema=voyager` on DATABASE_URL). That one
+// detail is what keeps the arrangement safe: Prisma writes its `_prisma_migrations`
+// bookkeeping table into whichever schema the connection string names, so our
+// migrations and Squad A's `public` migrations never see or clobber each other.
+//
+// Deliberately NO foreign key to Squad A's `documents` table, even though it is
+// physically reachable. We store their documentId as a plain uuid column instead.
+// A cross-schema FK would mean their migrations could block ours, a deleted
+// document would cascade into our ledger, and this module could no longer be
+// lifted into another client project. Same database, no schema-level dependency.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// One QR asset generated for one of Squad A's documents.
+///
+/// This table is a generation ledger, not a second copy of their document data.
+/// Squad A's `documents` row stays authoritative; we record only what we need to
+/// render, sign and re-serve the QR.
+model QrAsset {
+  id String @id @default(uuid()) @db.Uuid
+
+  // -- Identity (owned by Backend Squad A) ---------------------------------
+  /// Their Document.id. The idempotency key: one QR per document, enforced by
+  /// the database rather than by application logic, so two concurrent retries
+  /// cannot both get through.
+  documentId String @unique @map("document_id") @db.Uuid
+
+  /// Their Document.qrCodeId. The public, unguessable token that appears in the
+  /// verification URL.
+  qrCodeId String @unique @map("qr_code_id") @db.Uuid
+
+  // -- Cryptographic material ----------------------------------------------
+  /// HMAC-SHA256 over documentId, qrCodeId, issuedAt and expiresAt.
+  /// Internal integrity check only. Never selected into a response — see the
+  /// REFERENCE_SELECT / INTERNAL_SELECT split in models/qrAsset.js.
+  verificationHash String @map("verification_hash")
+
+  // -- Document snapshot (denormalised, display-only) -----------------------
+  // Kept so the email module can compose a message without a round trip to
+  // Squad A. They remain authoritative if these ever diverge.
+  documentType    String? @map("document_type")
+  title           String?
+  referenceNumber String? @map("reference_number")
+  recipientName   String? @map("recipient_name")
+  recipientEmail  String? @map("recipient_email") // PII — see docs/qr-payload-spec.md
+
+  // -- Token timing ---------------------------------------------------------
+  // timestamptz rather than timestamp: these cross service boundaries and get
+  // compared against Squad A's values, so an ambiguous local time would be a
+  // real bug rather than a cosmetic one.
+  issuedAt  DateTime @map("issued_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+
+  // -- Rendered assets ------------------------------------------------------
+  /// Local PNG cache path. Nullable: a missing file is re-rendered on demand.
+  qrCodePath String? @map("qr_code_path")
+
+  /// The URL encoded in the QR image — Frontend Squad A's portal deep link.
+  verificationUrl String @map("verification_url")
+
+  // -- Lifecycle ------------------------------------------------------------
+  status   QrAssetStatus @default(active)
+  metadata Json          @default("{}")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("qr_assets")
+}
+
+/// Stored lifecycle state. Expiry is deliberately NOT a value here — it is
+/// derived from expiresAt at read time (see effectiveStatus in models/qrAsset.js),
+/// so no sweeper job is needed to keep rows honest.
+enum QrAssetStatus {
+  active
+  expired
+  revoked
+
+  @@map("qr_asset_status")
+}
