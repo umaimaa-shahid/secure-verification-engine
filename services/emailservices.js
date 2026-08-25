@@ -16,21 +16,11 @@ const transporter = nodemailer.createTransport(smtpConfig);
  */
 function renderTemplate(templateName, data = {}) {
   const filePath = path.join(__dirname, "..", "templates", templateName);
-
-  // Cache template content to avoid blocking disk reads on each request.
-  renderTemplate._cache ??= new Map();
-  const cached = renderTemplate._cache.get(filePath);
-  let html = cached ?? fs.readFileSync(filePath, "utf-8");
-  if (!cached) renderTemplate._cache.set(filePath, html);
-
-  const escapeHtml = (val) =>
-    String(val).replace(/[&<>"']/g, (ch) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]
-    );
+  let html = fs.readFileSync(filePath, "utf-8");
 
   for (const [key, value] of Object.entries(data)) {
     const pattern = new RegExp(`{{\\s*${key}\\s*}}`, "g");
-    html = html.replace(pattern, escapeHtml(value));
+    html = html.replace(pattern, value);
   }
 
   return html;
@@ -47,7 +37,7 @@ function renderTemplate(templateName, data = {}) {
 async function sendEmail({ to, subject, html }) {
   try {
     const info = await transporter.sendMail({
-      from: process.env.SMTP_FROM || smtpConfig.auth.user,
+      from: smtpConfig.auth.user,
       to,
       subject,
       html,
@@ -59,10 +49,7 @@ async function sendEmail({ to, subject, html }) {
   }
 }
 
-/**
- * Verify SMTP credentials/connection work.
- * Useful for a startup check or a health-check route.
- */
+
 async function verifyConnection() {
   try {
     await transporter.verify();
