@@ -103,5 +103,94 @@ async function handleWebhook(req, res) {
   } catch (err) {
     return res.status(500).json({ success: false, message: "Failed to update EmailLog" });
   }
+}
+async function sendNotificationEmail(req, res) {
+  const { recipientEmail, document, timestamp } = req.body;
 
-module.exports = { sendAssetEmail, handleWebhook };
+  // Validate Squad A payload
+  if (
+    !recipientEmail ||
+    !document ||
+    !document.id ||
+    !document.title ||
+    !document.referenceNumber ||
+    !document.qrCodeUrl ||
+    !timestamp
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid notification payload",
+    });
+  }
+
+  const {
+    id: documentId,
+    title,
+    referenceNumber,
+    qrCodeUrl,
+  } = document;
+
+  const subject = `Your ${title} Is Ready`;
+
+  try {
+    
+    const existingEmail = await EmailLog.findOne({
+      documentId,
+      recipient: recipientEmail,
+      status: {
+        $in: ["queued", "sent", "delivered"],
+      },
+    });
+
+    if (existingEmail) {
+      return res.status(200).json({
+        success: true,
+        duplicate: true,
+        message: "Notification already processed",
+        messageId: existingEmail.messageId || null,
+      });
+    }
+
+    const html = renderTemplate("assetDelivery.html", {
+      name: recipientEmail,
+      assetName: title,
+      assetUrl: qrCodeUrl,
+      referenceNumber,
+    });
+
+    
+    const queuedEmail = await EmailLog.create({
+      recipient: recipientEmail,
+      subject,
+      status: "queued",
+      documentId,
+      referenceNumber,
+      sentAt: null,
+      attempts: 0,
+      nextAttemptAt: new Date(),
+      lastError: null,
+
+      
+      html,
+    });
+
+    return res.status(200).json({
+      success: true,
+      duplicate: false,
+      message: "Notification email queued successfully",
+      queueId: queuedEmail._id,
+    });
+  } catch (err) {
+    console.error("Notification queue error:", err.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong while queuing notification email",
+    });
+  }
+}
+module.exports = {
+  sendAssetEmail,
+  sendNotificationEmail,
+  handleWebhook,
+};

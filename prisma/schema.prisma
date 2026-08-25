@@ -14,11 +14,13 @@
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas   = ["public", "voyager"]
 }
 
 /// One QR asset generated for one of Squad A's documents.
@@ -77,6 +79,7 @@ model QrAsset {
 
   @@index([expiresAt])
   @@map("qr_assets")
+  @@schema("voyager")
 }
 
 /// Stored lifecycle state. Expiry is deliberately NOT a value here — it is
@@ -88,4 +91,41 @@ enum QrAssetStatus {
   revoked
 
   @@map("qr_asset_status")
+  @@schema("voyager")
+}
+
+model EmailLog {
+  id              String    @id @default(uuid())
+  recipient       String
+  subject         String
+  html            String?
+  status          String    @default("queued")
+  messageId       String?   @map("message_id")
+  error           String?
+  documentId      String?   @map("document_id")
+  qrCodeId        String?   @map("qr_code_id")
+  referenceNumber String?   @map("reference_number")
+  attempts        Int       @default(0)
+  nextAttemptAt   DateTime? @map("next_attempt_at")
+  lastError       String?   @map("last_error")
+  sentAt          DateTime? @map("sent_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([messageId])
+  @@map("email_logs")
+  @@schema("public")
+}
+
+model ImapState {
+  id          String    @id @default(uuid())
+  key         String    @unique @default("bounce-listener")
+  lastUid     Int       @default(0) @map("last_uid")
+  uidValidity String?   @map("uid_validity")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("imap_states")
+  @@schema("public")
 }

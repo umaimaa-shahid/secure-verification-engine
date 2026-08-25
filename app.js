@@ -3,6 +3,7 @@ const express = require("express");
 const { qrConfig } = require("./config/qr");
 const qrRoutes = require("./routes/qrRoutes");
 const qrInternalRoutes = require("./routes/qrInternalRoutes");
+const emailRoutes = require("./routes/emailroutes");
 const { errorHandler, notFoundHandler } = require("./middleware/errorHandler");
 
 /**
@@ -38,11 +39,7 @@ function createApp() {
 
   app.use("/api/qr", qrRoutes);
   app.use("/api/internal/qr", qrInternalRoutes);
-
-  // Extension point: the email notification routes (Voyager task 5.2, "Expose
-  // Email Notification API") mount here as app.use("/api/email", emailRoutes).
-  // Left unmounted because controllers/emailcontroller.js does not currently
-  // parse - see README, "Known issues outside this module".
+  app.use("/api/email", emailRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

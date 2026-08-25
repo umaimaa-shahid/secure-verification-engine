@@ -21,7 +21,7 @@ const { execFileSync } = require("child_process");
  */
 
 const STATE_FILE = path.join(__dirname, "..", ".tmp", "test-db.json");
-const TEST_SCHEMA = "voyager_test";
+const TEST_SCHEMA = "voyager";
 const EMBEDDED_PORT = Number(process.env.TEST_PG_PORT) || 55433;
 
 let embedded = null;

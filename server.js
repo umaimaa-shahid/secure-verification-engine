@@ -4,6 +4,8 @@ const { createApp } = require("./app");
 const { qrConfig } = require("./config/qr");
 const { connectDatabase, disconnectDatabase } = require("./config/db");
 const logger = require("./utils/logger");
+const { startEmailWorker } = require("./services/emailworker");
+const { startListening: startImapListener } = require("./services/imapservices");
 
 /**
  * Process entry point.
@@ -22,6 +24,9 @@ async function start() {
       publicBaseUrl: qrConfig.publicBaseUrl,
     });
   });
+
+  startEmailWorker();
+  if (process.env.ENABLE_IMAP === "true") startImapListener().catch((err) => logger.error("IMAP startup failed", { reason: err.message }));
 
   /**
    * Stop accepting new connections, let in-flight requests finish, then close

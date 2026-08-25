@@ -28,15 +28,17 @@
   },
   "homepage": "https://github.com/devlogixtechnology/Secure-Verification-Engine#readme",
   "dependencies": {
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^6.19.3",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "mongoose": "^9.9.3",
+    "imapflow": "^1.7.1",
+    "mailparser": "^3.9.15",
+    "nodemailer": "^9.0.5",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "embedded-postgres": "^18.4.0-beta.17",
-    "prisma": "^5.22.0"
+    "prisma": "^6.19.3"
   }
 }
